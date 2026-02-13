@@ -20,9 +20,43 @@ document.addEventListener("DOMContentLoaded", () => {
 
     return `
       <ul class="participants-list">
-        ${participants.map((participant) => `<li>${escapeHtml(participant)}</li>`).join("")}
+        ${participants
+          .map(
+            (participant) => `
+              <li>
+                <span class="participant-email">${escapeHtml(participant)}</span>
+                <button
+                  type="button"
+                  class="remove-participant-button"
+                  data-participant="${escapeHtml(participant)}"
+                  aria-label="Eliminar a ${escapeHtml(participant)}"
+                  title="Eliminar participante"
+                >
+                  🗑️
+                </button>
+              </li>
+            `
+          )
+          .join("")}
       </ul>
     `;
+  }
+
+  async function cancelSignupForActivity(activityName, email) {
+    const response = await fetch(
+      `/activities/${encodeURIComponent(activityName)}/signup?email=${encodeURIComponent(email)}`,
+      {
+        method: "DELETE",
+      }
+    );
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.detail || "No se pudo cancelar el registro");
+    }
+
+    return result;
   }
 
   // Function to fetch activities from API
@@ -52,7 +86,9 @@ document.addEventListener("DOMContentLoaded", () => {
           <p><strong>Availability:</strong> ${spotsLeft} spots left</p>
           <section class="participants-section" aria-label="Participants for ${escapeHtml(name)}">
             <h5>Participantes</h5>
-            ${renderParticipants(details.participants)}
+            <div data-activity-name="${escapeHtml(name)}">
+              ${renderParticipants(details.participants)}
+            </div>
           </section>
         `;
 
@@ -108,6 +144,39 @@ document.addEventListener("DOMContentLoaded", () => {
       messageDiv.className = "error";
       messageDiv.classList.remove("hidden");
       console.error("Error signing up:", error);
+    }
+  });
+
+  activitiesList.addEventListener("click", async (event) => {
+    const removeButton = event.target.closest(".remove-participant-button");
+
+    if (!removeButton) {
+      return;
+    }
+
+    const activityContainer = removeButton.closest("[data-activity-name]");
+    const activityName = activityContainer?.dataset.activityName;
+    const participantEmail = removeButton.dataset.participant;
+
+    if (!activityName || !participantEmail) {
+      return;
+    }
+
+    try {
+      const result = await cancelSignupForActivity(activityName, participantEmail);
+      messageDiv.textContent = result.message;
+      messageDiv.className = "success";
+      messageDiv.classList.remove("hidden");
+      fetchActivities();
+
+      setTimeout(() => {
+        messageDiv.classList.add("hidden");
+      }, 5000);
+    } catch (error) {
+      messageDiv.textContent = error.message || "Failed to cancel signup. Please try again.";
+      messageDiv.className = "error";
+      messageDiv.classList.remove("hidden");
+      console.error("Error cancelling signup:", error);
     }
   });
 
