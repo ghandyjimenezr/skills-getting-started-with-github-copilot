@@ -22,6 +22,42 @@ app.mount("/static", StaticFiles(directory=os.path.join(Path(__file__).parent,
 # In-memory activity database
 activities = {
     "Chess Club": {
+        "Football Team": {
+            "description": "Entrenamientos y partidos de fútbol para mejorar condición física y trabajo en equipo",
+            "schedule": "Lunes y miércoles, 4:00 PM - 5:30 PM",
+            "max_participants": 22,
+            "participants": ["liam@mergington.edu", "noah@mergington.edu"]
+        },
+        "Basketball Team": {
+            "description": "Práctica de baloncesto con enfoque en técnica, estrategia y competencias escolares",
+            "schedule": "Martes y jueves, 4:00 PM - 5:30 PM",
+            "max_participants": 15,
+            "participants": ["ava@mergington.edu", "mia@mergington.edu"]
+        },
+        "Painting Workshop": {
+            "description": "Exploración de técnicas de pintura acrílica y acuarela",
+            "schedule": "Miércoles, 3:30 PM - 5:00 PM",
+            "max_participants": 18,
+            "participants": ["isabella@mergington.edu", "charlotte@mergington.edu"]
+        },
+        "Theater Club": {
+            "description": "Actuación, improvisación y montaje de obras escolares",
+            "schedule": "Viernes, 3:30 PM - 5:30 PM",
+            "max_participants": 20,
+            "participants": ["amelia@mergington.edu", "harper@mergington.edu"]
+        },
+        "Debate Club": {
+            "description": "Desarrollo de pensamiento crítico y argumentación en debates académicos",
+            "schedule": "Lunes, 3:30 PM - 5:00 PM",
+            "max_participants": 16,
+            "participants": ["benjamin@mergington.edu", "elijah@mergington.edu"]
+        },
+        "Math Olympiad Prep": {
+            "description": "Resolución avanzada de problemas matemáticos para competencias",
+            "schedule": "Jueves, 3:30 PM - 5:00 PM",
+            "max_participants": 14,
+            "participants": ["lucas@mergington.edu", "evelyn@mergington.edu"]
+        },
         "description": "Learn strategies and compete in chess tournaments",
         "schedule": "Fridays, 3:30 PM - 5:00 PM",
         "max_participants": 12,
@@ -62,6 +98,36 @@ def signup_for_activity(activity_name: str, email: str):
     # Get the specific activity
     activity = activities[activity_name]
 
+    normalized_email = email.strip().lower()
+
+    # Validate student is not already signed up
+    if any(participant.strip().lower() == normalized_email for participant in activity["participants"]):
+        raise HTTPException(status_code=409, detail="Student already signed up for this activity")
+
     # Add student
-    activity["participants"].append(email)
-    return {"message": f"Signed up {email} for {activity_name}"}
+    
+    cleaned_email = email.strip()
+    activity["participants"].append(cleaned_email)
+    return {"message": f"Signed up {cleaned_email} for {activity_name}"}
+
+
+@app.delete("/activities/{activity_name}/signup")
+def cancel_signup_for_activity(activity_name: str, email: str):
+    """Cancel a student's signup for an activity"""
+    if activity_name not in activities:
+        raise HTTPException(status_code=404, detail="Activity not found")
+
+    activity = activities[activity_name]
+    normalized_email = email.strip().lower()
+
+    participant_index = next(
+        (index for index, participant in enumerate(activity["participants"])
+         if participant.strip().lower() == normalized_email),
+        None,
+    )
+
+    if participant_index is None:
+        raise HTTPException(status_code=404, detail="Participant not found in this activity")
+
+    removed_email = activity["participants"].pop(participant_index)
+    return {"message": f"Cancelled signup of {removed_email} from {activity_name}"}

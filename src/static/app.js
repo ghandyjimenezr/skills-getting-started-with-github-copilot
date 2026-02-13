@@ -4,6 +4,61 @@ document.addEventListener("DOMContentLoaded", () => {
   const signupForm = document.getElementById("signup-form");
   const messageDiv = document.getElementById("message");
 
+  function escapeHtml(value) {
+    return String(value)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#39;");
+  }
+
+  function renderParticipants(participants) {
+    if (!Array.isArray(participants) || participants.length === 0) {
+      return '<p class="participants-empty">No hay participantes inscritos todavía.</p>';
+    }
+
+    return `
+      <ul class="participants-list">
+        ${participants
+          .map(
+            (participant) => `
+              <li>
+                <span class="participant-email">${escapeHtml(participant)}</span>
+                <button
+                  type="button"
+                  class="remove-participant-button"
+                  data-participant="${escapeHtml(participant)}"
+                  aria-label="Eliminar a ${escapeHtml(participant)}"
+                  title="Eliminar participante"
+                >
+                  🗑️
+                </button>
+              </li>
+            `
+          )
+          .join("")}
+      </ul>
+    `;
+  }
+
+  async function cancelSignupForActivity(activityName, email) {
+    const response = await fetch(
+      `/activities/${encodeURIComponent(activityName)}/signup?email=${encodeURIComponent(email)}`,
+      {
+        method: "DELETE",
+      }
+    );
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.detail || "No se pudo cancelar el registro");
+    }
+
+    return result;
+  }
+
   // Function to fetch activities from API
   async function fetchActivities() {
     try {
@@ -12,6 +67,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // Clear loading message
       activitiesList.innerHTML = "";
+      activitySelect.innerHTML = '<option value="">-- Select an activity --</option>';
 
       // Populate activities list
       Object.entries(activities).forEach(([name, details]) => {
@@ -21,10 +77,19 @@ document.addEventListener("DOMContentLoaded", () => {
         const spotsLeft = details.max_participants - details.participants.length;
 
         activityCard.innerHTML = `
-          <h4>${name}</h4>
-          <p>${details.description}</p>
-          <p><strong>Schedule:</strong> ${details.schedule}</p>
+          <div class="activity-card-header">
+            <h4>${escapeHtml(name)}</h4>
+            <span class="participants-count">${details.participants.length} inscritos</span>
+          </div>
+          <p>${escapeHtml(details.description)}</p>
+          <p><strong>Schedule:</strong> ${escapeHtml(details.schedule)}</p>
           <p><strong>Availability:</strong> ${spotsLeft} spots left</p>
+          <section class="participants-section" aria-label="Participants for ${escapeHtml(name)}">
+            <h5>Participantes</h5>
+            <div data-activity-name="${escapeHtml(name)}">
+              ${renderParticipants(details.participants)}
+            </div>
+          </section>
         `;
 
         activitiesList.appendChild(activityCard);
@@ -62,6 +127,7 @@ document.addEventListener("DOMContentLoaded", () => {
         messageDiv.textContent = result.message;
         messageDiv.className = "success";
         signupForm.reset();
+        fetchActivities();
       } else {
         messageDiv.textContent = result.detail || "An error occurred";
         messageDiv.className = "error";
@@ -78,6 +144,39 @@ document.addEventListener("DOMContentLoaded", () => {
       messageDiv.className = "error";
       messageDiv.classList.remove("hidden");
       console.error("Error signing up:", error);
+    }
+  });
+
+  activitiesList.addEventListener("click", async (event) => {
+    const removeButton = event.target.closest(".remove-participant-button");
+
+    if (!removeButton) {
+      return;
+    }
+
+    const activityContainer = removeButton.closest("[data-activity-name]");
+    const activityName = activityContainer?.dataset.activityName;
+    const participantEmail = removeButton.dataset.participant;
+
+    if (!activityName || !participantEmail) {
+      return;
+    }
+
+    try {
+      const result = await cancelSignupForActivity(activityName, participantEmail);
+      messageDiv.textContent = result.message;
+      messageDiv.className = "success";
+      messageDiv.classList.remove("hidden");
+      fetchActivities();
+
+      setTimeout(() => {
+        messageDiv.classList.add("hidden");
+      }, 5000);
+    } catch (error) {
+      messageDiv.textContent = error.message || "Failed to cancel signup. Please try again.";
+      messageDiv.className = "error";
+      messageDiv.classList.remove("hidden");
+      console.error("Error cancelling signup:", error);
     }
   });
 
